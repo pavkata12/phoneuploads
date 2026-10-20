@@ -41,7 +41,7 @@ public class UploadService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        NotificationChannel channel = new NotificationChannel(CHANNEL, "Качване", NotificationManager.IMPORTANCE_LOW);
+        NotificationChannel channel = new NotificationChannel(CHANNEL, "Сървър на Ренди", NotificationManager.IMPORTANCE_LOW);
         channel.setDescription("Показва докъде е стигнало видеото");
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) {
@@ -51,7 +51,7 @@ public class UploadService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Notification notification = note("Качване към лаптопа", "Подготовка…", 0, 0);
+        Notification notification = note("Сървър на Ренди", "Подготовка…", 0, 0);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTE_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         } else {
@@ -83,7 +83,7 @@ public class UploadService extends Service {
             wakeLock.acquire(12L * 60L * 60L * 1000L);
         }
         try {
-            show("Качване към лаптопа", "Свързване…", -1, 0);
+            show("Сървър на Ренди", "Свързване…", -1, 0);
             SharedPreferences prefs = getSharedPreferences("phoneuploads", MODE_PRIVATE);
             JSONArray queue = readQueue();
             if (queue.length() == 0) {
@@ -91,7 +91,7 @@ public class UploadService extends Service {
                 return;
             }
             ServerClient client = new ServerClient(TailscaleAddress.parse(prefs.getString("url", "")));
-            show("Качване към лаптопа", "Влизане в лаптопа…", -1, 0);
+            show("Сървър на Ренди", "Влизане в сървъра на Ренди…", -1, 0);
             client.login(prefs.getString("password", ""));
             while (queue.length() > 0 && !stopRequested) {
                 boolean finished = uploadOne(client, queue.getJSONObject(0));

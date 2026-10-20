@@ -8,6 +8,8 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -58,6 +60,7 @@ public class MainActivity extends Activity {
         Button pick = findViewById(R.id.pick);
         Button upload = findViewById(R.id.upload);
         Button stop = findViewById(R.id.stop);
+        Button background = findViewById(R.id.background);
         save.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -99,6 +102,12 @@ public class MainActivity extends Activity {
                 status.setText("Спирам след текущото парче…");
             }
         });
+        background.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                allowBackground(true);
+            }
+        });
     }
 
     @Override
@@ -111,6 +120,29 @@ public class MainActivity extends Activity {
     protected void onPause() {
         handler.removeCallbacks(refresher);
         super.onPause();
+    }
+
+    private void allowBackground(boolean alwaysAsk) {
+        if (Build.VERSION.SDK_INT < 23) {
+            return;
+        }
+        PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+        boolean allowed = power != null && power.isIgnoringBatteryOptimizations(getPackageName());
+        if (allowed && !alwaysAsk) {
+            return;
+        }
+        if (allowed) {
+            status.setText("Фоновият мотор е включен. Качването продължава при заключен екран.");
+            return;
+        }
+        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        try {
+            startActivity(intent);
+            status.setText("Разреши „На Ренди“, за да не спира качването на заден план.");
+        } catch (Exception ex) {
+            status.setText("Отвори батерията на телефона и махни ограничението за На Ренди.");
+        }
     }
 
     private boolean saveSettings() {
@@ -138,7 +170,8 @@ public class MainActivity extends Activity {
             return;
         }
         UploadService.stopRequested = false;
-        UploadService.statusText = "Свързване с лаптопа…";
+        UploadService.statusText = "Свързване със сървъра на Ренди…";
+        allowBackground(false);
         Intent intent = new Intent(this, UploadService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent);

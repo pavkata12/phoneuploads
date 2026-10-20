@@ -55,7 +55,7 @@ def _startup_dir() -> Path:
     return _known_folder(0x0007)
 
 
-def _message(text: str, title: str = "Качване от телефона") -> None:
+def _message(text: str, title: str = "Сървър на Ренди") -> None:
     import ctypes
 
     ctypes.windll.user32.MessageBoxW(None, text, title, 0x40)
@@ -140,7 +140,7 @@ def _create_shortcut(path: Path, target: Path) -> None:
         f"$link.TargetPath = '{target}'; "
         f"$link.WorkingDirectory = '{target.parent}'; "
         "$link.WindowStyle = 7; "
-        "$link.Description = 'Качване от телефона'; "
+        "$link.Description = 'Сървър на Ренди'; "
         "$link.Save()"
     )
     subprocess.run(
@@ -151,7 +151,7 @@ def _create_shortcut(path: Path, target: Path) -> None:
 
 
 def _set_autostart(enabled: bool) -> None:
-    link = _startup_dir() / "Качване от телефона.lnk"
+    link = _startup_dir() / "Сървър на Ренди.lnk"
     if not enabled:
         link.unlink(missing_ok=True)
         return
@@ -163,8 +163,8 @@ def _set_autostart(enabled: bool) -> None:
 
 def _install_shortcuts() -> None:
     target = Path(sys.executable) if getattr(sys, "frozen", False) else Path(__file__).resolve()
-    _create_shortcut(_desktop_dir() / "Качване от телефона.lnk", target)
-    _create_shortcut(_programs_dir() / "Качване от телефона.lnk", target)
+    _create_shortcut(_desktop_dir() / "Сървър на Ренди.lnk", target)
+    _create_shortcut(_programs_dir() / "Сървър на Ренди.lnk", target)
 
 
 def _allow_firewall(port: int) -> None:
@@ -233,7 +233,7 @@ def _run_wizard() -> bool:
     root.minsize(520, 430)
     root.configure(padx=16, pady=12)
 
-    ttk.Label(root, text="Качване от телефона", font=("Segoe UI", 18, "bold")).pack(anchor="w")
+    ttk.Label(root, text="Сървър на Ренди", font=("Segoe UI", 18, "bold")).pack(anchor="w")
     ttk.Label(
         root,
         text="Слагаш програмата на лаптопа веднъж. После от телефона, през Tailscale,\nкачваш видеото и то се записва на диска.",
@@ -325,7 +325,7 @@ class ControlWindow:
 
         self.tk = tk
         self.root = tk.Tk()
-        self.root.title("Качване от телефона")
+        self.root.title("Сървър на Ренди")
         self.root.geometry("640x460")
         self.root.minsize(560, 400)
         self.local = tk.BooleanVar(value=False)
@@ -339,7 +339,7 @@ class ControlWindow:
 
         pad = ttk.Frame(self.root, padding=16)
         pad.pack(fill="both", expand=True)
-        ttk.Label(pad, text="Качване от телефона", font=("Segoe UI", 18, "bold")).pack(anchor="w")
+        ttk.Label(pad, text="Сървър на Ренди", font=("Segoe UI", 18, "bold")).pack(anchor="w")
         ttk.Label(pad, textvariable=self.status, font=("Segoe UI", 12)).pack(anchor="w", pady=(8, 4))
         ttk.Label(pad, textvariable=self.address, font=("Segoe UI", 12)).pack(anchor="w")
         ttk.Label(pad, textvariable=self.folder).pack(anchor="w", pady=(4, 10))

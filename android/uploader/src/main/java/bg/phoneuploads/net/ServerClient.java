@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -77,13 +78,18 @@ public final class ServerClient {
     }
 
     public long putChunk(String uploadId, long offset, byte[] data, int length) throws IOException {
+        return putChunk(uploadId, offset, data, length, null);
+    }
+
+    public long putChunk(String uploadId, long offset, byte[] data, int length, IntConsumer onWritten) throws IOException {
         HttpResult result = request(
                 "PUT",
                 "/api/uploads/" + uploadId + "/chunk?offset=" + offset,
                 "application/octet-stream",
                 data,
                 length,
-                csrf);
+                csrf,
+                onWritten);
         if (result.status == 409) {
             return jsonLong(result.body, "offset", offset);
         }
@@ -104,10 +110,21 @@ public final class ServerClient {
 
     private HttpResult request(String method, String path, String contentType, byte[] body, String csrfToken) throws IOException {
         int length = body == null ? 0 : body.length;
-        return request(method, path, contentType, body, length, csrfToken);
+        return request(method, path, contentType, body, length, csrfToken, null);
     }
 
     private HttpResult request(String method, String path, String contentType, byte[] body, int length, String csrfToken) throws IOException {
+        return request(method, path, contentType, body, length, csrfToken, null);
+    }
+
+    private HttpResult request(
+            String method,
+            String path,
+            String contentType,
+            byte[] body,
+            int length,
+            String csrfToken,
+            IntConsumer onWritten) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) base.resolve(path).toURL().openConnection();
         connection.setInstanceFollowRedirects(false);
         connection.setConnectTimeout(20000);
@@ -127,7 +144,15 @@ public final class ServerClient {
             }
             connection.setFixedLengthStreamingMode(length);
             OutputStream out = connection.getOutputStream();
-            out.write(body, 0, length);
+            int sent = 0;
+            while (sent < length) {
+                int piece = Math.min(64 * 1024, length - sent);
+                out.write(body, sent, piece);
+                sent += piece;
+                if (onWritten != null) {
+                    onWritten.accept(sent);
+                }
+            }
             out.flush();
         }
         int status = connection.getResponseCode();

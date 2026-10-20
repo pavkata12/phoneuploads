@@ -19,6 +19,9 @@ import org.json.JSONObject;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -80,6 +83,7 @@ public class UploadService extends Service {
             wakeLock.acquire(12L * 60L * 60L * 1000L);
         }
         try {
+            show("Качване към лаптопа", "Свързване…", -1, 0);
             SharedPreferences prefs = getSharedPreferences("phoneuploads", MODE_PRIVATE);
             JSONArray queue = readQueue();
             if (queue.length() == 0) {
@@ -87,6 +91,7 @@ public class UploadService extends Service {
                 return;
             }
             ServerClient client = new ServerClient(TailscaleAddress.parse(prefs.getString("url", "")));
+            show("Качване към лаптопа", "Влизане в лаптопа…", -1, 0);
             client.login(prefs.getString("password", ""));
             while (queue.length() > 0 && !stopRequested) {
                 boolean finished = uploadOne(client, queue.getJSONObject(0));
@@ -101,6 +106,10 @@ public class UploadService extends Service {
             } else {
                 show("Готово", "Файловете са на лаптопа.", 0, 0);
             }
+        } catch (SocketTimeoutException ex) {
+            show("Няма връзка", "Лаптопът не отговаря. Включи Tailscale и остави програмата на лаптопа отворена.", 0, 0);
+        } catch (ConnectException ex) {
+            show("Няма връзка", "Телефонът не стига до лаптопа. Включи Tailscale и на двете.", 0, 0);
         } catch (Exception ex) {
             String message = ex.getMessage() == null ? "Качването спря." : ex.getMessage();
             show("Качването спря", message, 0, 0);
@@ -118,30 +127,28 @@ public class UploadService extends Service {
         String name = item.getString("name");
         long size = item.getLong("size");
         String key = item.getString("key");
+        show(name, "Започва…", -1, 0);
         ServerClient.UploadStart start = client.startUpload(name, size, key);
         long offset = start.offset;
         int chunkSize = Math.max(256 * 1024, start.chunkSize);
+        int percent = percentOf(offset, size);
+        show(name, percent + "%", 100, percent);
         try (ParcelFileDescriptor descriptor = getContentResolver().openFileDescriptor(uri, "r")) {
             if (descriptor == null) {
                 throw new IllegalStateException("Телефонът не отвори „" + name + "“.");
             }
             FileInputStream stream = new FileInputStream(descriptor.getFileDescriptor());
             FileChannel channel = stream.getChannel();
+            channel.position(offset);
             while (offset < size && !stopRequested) {
                 int want = (int) Math.min(chunkSize, size - offset);
-                ByteBuffer buffer = ByteBuffer.allocate(want);
-                channel.position(offset);
-                while (buffer.hasRemaining()) {
-                    if (channel.read(buffer) < 0) {
-                        break;
-                    }
-                }
-                if (buffer.position() != want) {
-                    throw new IllegalStateException("„" + name + "“ се промени по време на качване.");
-                }
-                byte[] data = buffer.array();
-                offset = sendWithRetry(client, start.uploadId, offset, data, want);
-                int percent = (int) Math.min(100, (offset * 100L) / size);
+                byte[] data = readChunk(channel, want);
+                final long startOffset = offset;
+                offset = sendWithRetry(client, start.uploadId, offset, data, want, written -> {
+                    int sentPercent = percentOf(startOffset + written, size);
+                    show(name, sentPercent + "%", 100, sentPercent);
+                });
+                percent = percentOf(offset, size);
                 show(name, percent + "%", 100, percent);
             }
         }
@@ -153,14 +160,44 @@ public class UploadService extends Service {
         return true;
     }
 
-    private long sendWithRetry(ServerClient client, String uploadId, long offset, byte[] data, int length) throws Exception {
+    private byte[] readChunk(FileChannel channel, int want) throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(want);
+        while (buffer.hasRemaining()) {
+            int count = channel.read(buffer);
+            if (count < 0) {
+                break;
+            }
+            if (count == 0) {
+                throw new IOException("Телефонът не успя да прочете файла.");
+            }
+        }
+        if (buffer.position() != want) {
+            throw new IOException("Файлът се промени по време на качване.");
+        }
+        return buffer.array();
+    }
+
+    private int percentOf(long done, long size) {
+        if (size < 1) {
+            return 0;
+        }
+        return (int) Math.min(100, (done * 100L) / size);
+    }
+
+    private long sendWithRetry(
+            ServerClient client,
+            String uploadId,
+            long offset,
+            byte[] data,
+            int length,
+            java.util.function.IntConsumer onWritten) throws Exception {
         Exception last = null;
         for (int attempt = 1; attempt <= 3; attempt++) {
             if (stopRequested) {
                 return offset;
             }
             try {
-                return client.putChunk(uploadId, offset, data, length);
+                return client.putChunk(uploadId, offset, data, length, onWritten);
             } catch (Exception ex) {
                 last = ex;
                 if (attempt == 3) {
@@ -191,9 +228,12 @@ public class UploadService extends Service {
                 .setContentIntent(pending)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true);
-        if (max > 0) {
+        if (max < 0) {
+            builder.setProgress(0, 0, true);
+        } else if (max > 0) {
             builder.setProgress(max, progress, false);
         }
+        builder.setStyle(new Notification.BigTextStyle().bigText(text));
         return builder.build();
     }
 

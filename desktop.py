@@ -310,12 +310,37 @@ def _run_wizard() -> bool:
                 pass
         if firewall.get():
             _allow_firewall(chosen_port)
+        _save_known_password(first)
         done["ok"] = True
         root.destroy()
 
     ttk.Button(root, text="Инсталирай", command=install).pack(fill="x", ipady=6)
     root.mainloop()
     return done["ok"]
+
+
+def _password_file() -> Path:
+    return app_home() / "data" / "password.local"
+
+
+def _save_known_password(password: str) -> None:
+    path = _password_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(password, encoding="utf-8")
+    user = os.environ.get("USERNAME") or ""
+    if user:
+        subprocess.run(
+            ["icacls", str(path), "/inheritance:r", "/grant:r", f"{user}:(R,W)"],
+            check=False,
+            creationflags=CREATE_NO_WINDOW,
+        )
+
+
+def _read_known_password() -> str:
+    path = _password_file()
+    if not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8").replace("\r", "").removesuffix("\n")
 
 
 class ControlWindow:
@@ -326,8 +351,8 @@ class ControlWindow:
         self.tk = tk
         self.root = tk.Tk()
         self.root.title("Сървър на Ренди")
-        self.root.geometry("640x460")
-        self.root.minsize(560, 400)
+        self.root.geometry("640x540")
+        self.root.minsize(560, 460)
         self.local = tk.BooleanVar(value=False)
         self.status = tk.StringVar(value="Стартиране...")
         self.address = tk.StringVar(value="")
@@ -342,7 +367,15 @@ class ControlWindow:
         ttk.Label(pad, text="Сървър на Ренди", font=("Segoe UI", 18, "bold")).pack(anchor="w")
         ttk.Label(pad, textvariable=self.status, font=("Segoe UI", 12)).pack(anchor="w", pady=(8, 4))
         ttk.Label(pad, textvariable=self.address, font=("Segoe UI", 12)).pack(anchor="w")
-        ttk.Label(pad, textvariable=self.folder).pack(anchor="w", pady=(4, 10))
+        ttk.Label(pad, textvariable=self.folder).pack(anchor="w", pady=(4, 8))
+        password_row = ttk.Frame(pad)
+        password_row.pack(fill="x", pady=(0, 8))
+        ttk.Label(password_row, text="Парола за телефона").pack(side="left")
+        self.password_value = tk.StringVar(value=self._password_label())
+        password_box = ttk.Entry(password_row, textvariable=self.password_value, state="readonly")
+        password_box.pack(side="left", fill="x", expand=True, padx=8)
+        ttk.Button(password_row, text="Копирай", command=self.copy_password).pack(side="left")
+        ttk.Button(password_row, text="Нова парола", command=self.change_password).pack(side="left", padx=(6, 0))
         ttk.Checkbutton(
             pad,
             text="Само на този компютър (телефонът няма да може да се върже)",
@@ -363,6 +396,53 @@ class ControlWindow:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.start()
         self.root.after(800, self.refresh)
+
+    def _password_label(self) -> str:
+        saved = _read_known_password()
+        if saved:
+            return saved
+        return "Не е запазена. Натисни Нова парола."
+
+    def copy_password(self) -> None:
+        saved = _read_known_password()
+        if not saved:
+            self.password_value.set("Не е запазена. Натисни Нова парола.")
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(saved)
+
+    def change_password(self) -> None:
+        from tkinter import messagebox, simpledialog
+
+        from settings import settings
+        from setup_config import main as setup_main
+        from setup_config import validate_password
+
+        first = simpledialog.askstring("Нова парола", "Нова парола за телефона", show="*", parent=self.root)
+        if not first:
+            return
+        again = simpledialog.askstring("Нова парола", "Повтори паролата", show="*", parent=self.root)
+        if first != again:
+            messagebox.showerror("Парола", "Двете пароли не съвпадат.", parent=self.root)
+            return
+        try:
+            validate_password(first, settings.username or "owner")
+        except SystemExit as exc:
+            messagebox.showerror("Парола", _bulgarian_error(exc), parent=self.root)
+            return
+        os.environ["PHONEUPLOADS_NEW_PASSWORD"] = first
+        try:
+            setup_main(["--storage", str(settings.storage_dir), "--port", str(settings.port)])
+        except SystemExit as exc:
+            if exc.code not in (0, None):
+                messagebox.showerror("Парола", _bulgarian_error(exc), parent=self.root)
+                return
+        finally:
+            os.environ.pop("PHONEUPLOADS_NEW_PASSWORD", None)
+        _save_known_password(first)
+        self.stop()
+        messagebox.showinfo("Парола", "Паролата е записана. Програмата ще се отвори отново.", parent=self.root)
+        _relaunch()
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():

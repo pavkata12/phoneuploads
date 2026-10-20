@@ -1,0 +1,37 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace "bg.phoneuploads"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "bg.phoneuploads"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs = ["src/main/java", "../uploader/src/main/java"]
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}

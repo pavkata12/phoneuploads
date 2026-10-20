@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Качване</string>
+    <string name="title">Качване към лаптопа</string>
+    <string name="intro">Tailscale трябва да е включен. След Качи можеш да заключиш телефона. Известието показва процента.</string>
+    <string name="address_label">Адрес от лаптопа</string>
+    <string name="password_label">Парола</string>
+    <string name="save">Запази</string>
+    <string name="pick">Избери снимки или видео</string>
+    <string name="upload">Качи</string>
+    <string name="stop">Спри</string>
+    <string name="waiting">Чака</string>
+</resources>

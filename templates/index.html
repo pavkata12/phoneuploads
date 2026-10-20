@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Качване от телефона</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="page-head row">
+      <div>
+        <p class="eyebrow">Домашен лаптоп</p>
+        <h1>Качване</h1>
+        <p class="lede">Изберете снимки или видео. Големите файлове се изпращат на части и могат да продължат след прекъсване.</p>
+      </div>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="ghost" type="submit">Изход</button>
+      </form>
+    </header>
+
+    <p id="banner" class="banner" hidden></p>
+    <p id="disk" class="muted"></p>
+
+    <section class="card">
+      <h2>Ново качване</h2>
+      <p id="limits" class="muted"></p>
+      <div class="actions">
+        <button type="button" id="pick-button">Избери снимки или видео</button>
+        <button type="button" id="start-button" disabled>Качи</button>
+        <button type="button" id="stop-button" class="ghost" disabled>Спри</button>
+      </div>
+      <input id="file-input" type="file" accept="image/*,video/*" multiple hidden>
+      <div id="queue" class="stack"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Незавършени</h2>
+        <button type="button" id="refresh-button" class="ghost">Обнови</button>
+      </div>
+      <div id="incomplete" class="stack"></div>
+    </section>
+
+    <section class="card">
+      <h2>Файлове на лаптопа</h2>
+      <div id="files" class="stack"></div>
+    </section>
+
+    <section class="card">
+      <h2>История</h2>
+      <div id="history" class="stack"></div>
+    </section>
+  </main>
+  <script id="boot" type="application/json">{{ boot | tojson }}</script>
+  <script src="/static/app.js"></script>
+  <noscript>
+    <p class="banner error">Тази страница се нуждае от JavaScript, за да качва големи файлове.</p>
+  </noscript>
+</body>
+</html>

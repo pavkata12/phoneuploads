@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Вход · Качване</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="wrap narrow">
+    <header class="page-head">
+      <p class="eyebrow">Домашен лаптоп</p>
+      <h1>Вход</h1>
+      <p class="lede">Файловете се записват само на вашия компютър. Връзката минава през Tailscale.</p>
+    </header>
+    <section class="card">
+      {% if error %}
+      <p class="banner error" role="alert">{{ error }}</p>
+      {% endif %}
+      <form method="post" action="/login" autocomplete="on">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="password">Парола</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required minlength="1" maxlength="256">
+        <button type="submit">Вход</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

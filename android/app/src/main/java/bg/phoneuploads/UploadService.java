@@ -146,10 +146,10 @@ public class UploadService extends Service {
                 final long startOffset = offset;
                 offset = sendWithRetry(client, start.uploadId, offset, data, want, written -> {
                     int sentPercent = percentOf(startOffset + written, size);
-                    show(name, sentPercent + "%", 100, sentPercent);
+                    show(name, "Изпраща се " + sentPercent + "%", 100, sentPercent);
                 });
                 percent = percentOf(offset, size);
-                show(name, percent + "%", 100, percent);
+                show(name, percent + "% на лаптопа", 100, percent);
             }
         }
         if (stopRequested || offset < size) {

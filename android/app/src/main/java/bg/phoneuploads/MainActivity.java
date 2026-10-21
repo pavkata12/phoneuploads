@@ -25,8 +25,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.FileOutputStream;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 
+import bg.phoneuploads.net.ServerClient;
 import bg.phoneuploads.net.TailscaleAddress;
 
 public class MainActivity extends Activity {
@@ -57,6 +60,7 @@ public class MainActivity extends Activity {
         password.setText(prefs.getString("password", ""));
 
         Button save = findViewById(R.id.save);
+        Button check = findViewById(R.id.check);
         Button pick = findViewById(R.id.pick);
         Button upload = findViewById(R.id.upload);
         Button stop = findViewById(R.id.stop);
@@ -65,6 +69,12 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View view) {
                 saveSettings();
+            }
+        });
+        check.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                checkConnection();
             }
         });
         pick.setOnClickListener(new View.OnClickListener() {
@@ -162,6 +172,44 @@ public class MainActivity extends Activity {
         address.setText(url);
         status.setText("Записано. Tailscale трябва да е включен.");
         return true;
+    }
+
+    private void checkConnection() {
+        if (!saveSettings()) {
+            return;
+        }
+        final String url = address.getText().toString();
+        final String secret = password.getText().toString();
+        status.setText("Проверявам връзката с лаптопа…");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final String message = probe(url, secret);
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        status.setText(message);
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private String probe(String url, String secret) {
+        try {
+            ServerClient client = new ServerClient(TailscaleAddress.parse(url));
+            client.login(secret);
+            return "Връзката е наред. Телефонът влезе в лаптопа.";
+        } catch (SocketTimeoutException ex) {
+            return "Лаптопът не отговаря. Остави програмата отворена и включи Tailscale.";
+        } catch (ConnectException ex) {
+            return "Телефонът не стига до лаптопа. Адресът трябва да е от прозореца на лаптопа.";
+        } catch (Exception ex) {
+            if (ex.getMessage() == null || ex.getMessage().isEmpty()) {
+                return "Няма връзка с лаптопа.";
+            }
+            return ex.getMessage();
+        }
     }
 
     private void beginUpload() {

@@ -30,10 +30,17 @@ public final class TailscaleAddress {
             throw new IllegalArgumentException("Адресът трябва да е Tailscale адресът на лаптопа, 100.x.x.x.");
         }
         int port = uri.getPort();
-        if (port != -1 && (port < 1 || port > 65535)) {
+        if (port == -1) {
+            port = 8787;
+        }
+        if (port < 1 || port > 65535) {
             throw new IllegalArgumentException("Портът в адреса не е валиден.");
         }
-        return uri;
+        try {
+            return new URI("http", null, uri.getHost(), port, null, null, null);
+        } catch (java.net.URISyntaxException ex) {
+            throw new IllegalArgumentException("Адресът не е валиден. Копирай го от лаптопа.");
+        }
     }
 
     static boolean inTailnet(String host) {

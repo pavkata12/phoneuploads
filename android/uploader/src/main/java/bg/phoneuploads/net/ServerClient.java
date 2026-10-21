@@ -50,10 +50,19 @@ public final class ServerClient {
         if (posted.status == 429) {
             throw new IOException("Твърде много опити. Изчакай и пробвай пак.");
         }
+        if (posted.status == 403) {
+            throw new IOException(errorText(posted, "Входът беше отхвърлен."));
+        }
         if (posted.status != 303 && posted.status != 302) {
-            throw new IOException("Входът не успя.");
+            throw new IOException(errorText(posted, "Входът не успя."));
+        }
+        if (!cookies.containsKey("phoneuploads_session")) {
+            throw new IOException("Лаптопът не върна сесия. Телефонът не остана влязъл.");
         }
         HttpResult home = request("GET", "/", null, null, null);
+        if (home.status == 303 || home.status == 302) {
+            throw new IOException("Сесията не се задържа. Натисни Провери връзката още веднъж.");
+        }
         if (home.status != 200) {
             throw new IOException("След входа страницата не се отвори.");
         }
@@ -156,15 +165,38 @@ public final class ServerClient {
             out.flush();
         }
         int status = connection.getResponseCode();
-        for (Map.Entry<String, List<String>> entry : connection.getHeaderFields().entrySet()) {
-            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase("Set-Cookie")) {
-                rememberCookies(entry.getValue());
-            }
+        rememberConnectionCookies(connection);
+        // Android throws if the body of a redirect is read, which used to abort
+        // login after the laptop had already accepted the password.
+        String text = "";
+        if (status >= 400) {
+            text = readText(connection.getErrorStream());
+        } else if (status < 300) {
+            text = readText(connection.getInputStream());
         }
-        InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-        String text = readText(stream);
         connection.disconnect();
         return new HttpResult(status, text);
+    }
+
+    private void rememberConnectionCookies(HttpURLConnection connection) {
+        Map<String, List<String>> fields = connection.getHeaderFields();
+        if (fields != null) {
+            for (Map.Entry<String, List<String>> entry : fields.entrySet()) {
+                if (entry.getKey() != null && entry.getKey().equalsIgnoreCase("Set-Cookie")) {
+                    rememberCookies(entry.getValue());
+                }
+            }
+        }
+        for (int i = 0; i < 40; i++) {
+            String key = connection.getHeaderFieldKey(i);
+            String value = connection.getHeaderField(i);
+            if (key == null && value == null) {
+                break;
+            }
+            if (key != null && key.equalsIgnoreCase("Set-Cookie") && value != null) {
+                rememberCookies(java.util.Collections.singletonList(value));
+            }
+        }
     }
 
     private void rememberCookies(List<String> headers) {
@@ -212,6 +244,9 @@ public final class ServerClient {
         String detail = jsonString(result.body, "detail");
         if (detail != null && !detail.isEmpty()) {
             return detail;
+        }
+        if (result.body.contains("изтекъл")) {
+            return "Формулярът е изтекъл. Сложи новата програма на лаптопа и опитай пак.";
         }
         return fallback;
     }

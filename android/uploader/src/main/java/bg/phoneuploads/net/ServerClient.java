@@ -304,7 +304,11 @@ public final class ServerClient {
     }
 
     private static String url(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+        try {
+            return URLEncoder.encode(value, "UTF-8");
+        } catch (java.io.UnsupportedEncodingException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     public static final class UploadStart {

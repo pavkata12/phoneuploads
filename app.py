@@ -189,7 +189,7 @@ def _header_pairs(cache: bytes) -> list[tuple[bytes, bytes]]:
     return [
         (b"x-content-type-options", b"nosniff"),
         (b"x-frame-options", b"DENY"),
-        (b"referrer-policy", b"no-referrer"),
+        (b"referrer-policy", b"same-origin"),
         (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
         (
             b"content-security-policy",
@@ -264,12 +264,16 @@ def current_user(request: Request) -> str:
 
 
 def origin_allowed(request: Request) -> bool:
-    origin = request.headers.get("origin")
+    origin = (request.headers.get("origin") or "").strip()
     if not origin:
         return True
+    # A same-site HTML form under Referrer-Policy no-referrer is sent with
+    # Origin: null. Sec-Fetch-Site is set by the browser and a page cannot forge it.
+    if origin == "null":
+        return request.headers.get("sec-fetch-site", "") == "same-origin"
     parsed = urlparse(origin)
     host = request.headers.get("host", "")
-    return parsed.scheme in {"http", "https"} and parsed.netloc == host
+    return parsed.scheme in {"http", "https"} and parsed.netloc.lower() == host.lower()
 
 
 def require_user(request: Request) -> str:

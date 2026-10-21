@@ -47,6 +47,27 @@ def test_login_cookie_and_logout(client):
     assert failed.status_code in {303, 403, 401}
 
 
+def test_browser_login_form_with_null_origin(client):
+    page = client.get("/login")
+    assert "same-origin" in page.headers.get("referrer-policy", "")
+    token = page.text.split('name="csrf_token" value="', 1)[1].split('"', 1)[0]
+    accepted = client.post(
+        "/login",
+        data={"csrf_token": token, "password": PASSWORD},
+        headers={"Origin": "null", "Sec-Fetch-Site": "same-origin"},
+        follow_redirects=False,
+    )
+    assert accepted.status_code == 303
+    foreign = client.post(
+        "/login",
+        data={"csrf_token": token, "password": PASSWORD},
+        headers={"Origin": "null", "Sec-Fetch-Site": "cross-site"},
+        follow_redirects=False,
+    )
+    assert foreign.status_code == 403
+    assert "изтекъл" in foreign.text
+
+
 def test_login_failure_and_lockout(client):
     page = client.get("/login")
     token = page.text.split('name="csrf_token" value="', 1)[1].split('"', 1)[0]

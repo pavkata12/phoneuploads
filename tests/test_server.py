@@ -22,6 +22,9 @@ from storage import (
 
 def test_health_static_and_hidden_docs(client):
     assert client.get("/health").json() == {"ok": True}
+    status = settings.data_dir / "phone-status.txt"
+    assert status.is_file()
+    assert "проверява връзката" in status.read_text(encoding="utf-8")
     assert client.get("/docs").status_code == 404
     assert client.get("/static/style.css").status_code == 200
     assert "Качи" in client.get("/static/app.js").text

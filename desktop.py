@@ -167,6 +167,17 @@ def _install_shortcuts() -> None:
     _create_shortcut(_programs_dir() / "Сървър на Ренди.lnk", target)
 
 
+def _firewall_allows() -> bool:
+    completed = subprocess.run(
+        ["netsh", "advfirewall", "firewall", "show", "rule", "name=PhoneUploads (Tailscale only)"],
+        capture_output=True,
+        text=True,
+        creationflags=CREATE_NO_WINDOW,
+    )
+    output = f"{completed.stdout}\n{completed.stderr}"
+    return completed.returncode == 0 and "No rules match" not in output and "PhoneUploads" in output
+
+
 def _allow_firewall(port: int) -> None:
     script = Path(os.environ.get("TEMP", ".")) / "phoneuploads-firewall.ps1"
     script.write_text(
@@ -361,12 +372,16 @@ class ControlWindow:
         self._thread: threading.Thread | None = None
         self._error = ""
         self._host = ""
+        self._firewall_tick = 0
+        self._firewall_open = False
 
         pad = ttk.Frame(self.root, padding=16)
         pad.pack(fill="both", expand=True)
         ttk.Label(pad, text="Сървър на Ренди", font=("Segoe UI", 18, "bold")).pack(anchor="w")
         ttk.Label(pad, textvariable=self.status, font=("Segoe UI", 12)).pack(anchor="w", pady=(8, 4))
         ttk.Label(pad, textvariable=self.address, font=("Segoe UI", 12)).pack(anchor="w")
+        self.phone = tk.StringVar(value="От телефона: още няма връзка.")
+        ttk.Label(pad, textvariable=self.phone, font=("Segoe UI", 14, "bold"), wraplength=600).pack(anchor="w", pady=(8, 4))
         ttk.Label(pad, textvariable=self.folder).pack(anchor="w", pady=(4, 8))
         password_row = ttk.Frame(pad)
         password_row.pack(fill="x", pady=(0, 8))
@@ -390,6 +405,7 @@ class ControlWindow:
         ttk.Button(buttons, text="Копирай адреса", command=self.copy_address).pack(side="left", padx=6)
         ttk.Button(buttons, text="Отвори папката", command=self.open_folder).pack(side="left", padx=6)
         ttk.Button(buttons, text="Отвори страницата", command=self.open_page).pack(side="left", padx=6)
+        ttk.Button(buttons, text="Разреши телефона", command=self.allow_phone).pack(side="left", padx=6)
 
         self.log = tk.Text(pad, height=12, wrap="word", font=("Consolas", 10))
         self.log.pack(fill="both", expand=True)
@@ -515,7 +531,33 @@ class ControlWindow:
         else:
             self.status.set("Спрян е.")
         self._show_log()
+        self._show_phone()
         self.root.after(1000, self.refresh)
+
+    def allow_phone(self) -> None:
+        from settings import settings
+
+        _allow_firewall(settings.port)
+        self.phone.set("Ако Windows попита, натисни Да. После от телефона натисни Провери връзката.")
+
+    def _show_phone(self) -> None:
+        from settings import settings
+
+        text = "От телефона: още няма връзка."
+        path = settings.data_dir / "phone-status.txt"
+        if path.is_file():
+            try:
+                found = path.read_text(encoding="utf-8", errors="replace").strip()
+            except OSError:
+                found = ""
+            if found:
+                text = found
+        self._firewall_tick += 1
+        if self._firewall_tick % 5 == 1:
+            self._firewall_open = _firewall_allows()
+        if self._host not in {"", "127.0.0.1", "::1"} and not self._firewall_open:
+            text += " Windows може да спира телефона. Натисни „Разреши телефона“."
+        self.phone.set(text)
 
     def _url(self) -> str:
         from settings import settings

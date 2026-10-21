@@ -91,7 +91,7 @@ public class UploadService extends Service {
                 return;
             }
             ServerClient client = new ServerClient(TailscaleAddress.parse(prefs.getString("url", "")));
-            show("Сървър на Ренди", "Влизане в сървъра на Ренди…", -1, 0);
+            show("Сървър на Ренди", "Чакам лаптопа…", -1, 0);
             client.login(prefs.getString("password", ""));
             while (queue.length() > 0 && !stopRequested) {
                 boolean finished = uploadOne(client, queue.getJSONObject(0));
@@ -107,10 +107,12 @@ public class UploadService extends Service {
                 show("Готово", "Файловете са на лаптопа.", 0, 0);
             }
         } catch (SocketTimeoutException ex) {
-            show("Няма връзка", "Лаптопът не отговаря. Включи Tailscale и остави програмата на лаптопа отворена.", 0, 0);
+            String message = ex.getMessage() == null ? "Лаптопът не отговаря. Включи Tailscale и остави програмата на лаптопа отворена." : ex.getMessage();
+            show("Няма връзка", message, 0, 0);
         } catch (ConnectException ex) {
-            show("Няма връзка", "Телефонът не стига до лаптопа. Включи Tailscale и на двете.", 0, 0);
-        } catch (Exception ex) {
+            String message = ex.getMessage() == null ? "Телефонът не стига до лаптопа. Включи Tailscale и на двете." : ex.getMessage();
+            show("Няма връзка", message, 0, 0);
+        } catch (Throwable ex) {
             String message = ex.getMessage() == null ? "Качването спря." : ex.getMessage();
             show("Качването спря", message, 0, 0);
         } finally {

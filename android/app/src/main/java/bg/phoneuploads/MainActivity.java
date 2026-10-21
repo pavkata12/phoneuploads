@@ -181,16 +181,21 @@ public class MainActivity extends Activity {
         final String url = address.getText().toString();
         final String secret = password.getText().toString();
         status.setText("Проверявам връзката с лаптопа…");
+        UploadService.statusText = "Проверявам връзката с лаптопа…";
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final String message = probe(url, secret);
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        status.setText(message);
-                    }
-                });
+                final String message;
+                try {
+                    message = probe(url, secret);
+                } catch (Throwable ex) {
+                    String detail = ex.getMessage();
+                    UploadService.statusText = detail == null || detail.isEmpty()
+                            ? "Проверката спря: " + ex.getClass().getSimpleName()
+                            : detail;
+                    return;
+                }
+                UploadService.statusText = message;
             }
         }).start();
     }
@@ -201,10 +206,16 @@ public class MainActivity extends Activity {
             client.login(secret);
             return "Връзката е наред. Телефонът влезе в лаптопа.";
         } catch (SocketTimeoutException ex) {
-            return "Лаптопът не отговаря. Остави програмата отворена и включи Tailscale.";
+            String message = ex.getMessage();
+            return message == null || message.isEmpty()
+                    ? "Лаптопът не отговаря. Остави програмата отворена и включи Tailscale."
+                    : message;
         } catch (ConnectException ex) {
-            return "Телефонът не стига до лаптопа. Адресът трябва да е от прозореца на лаптопа.";
-        } catch (Exception ex) {
+            String message = ex.getMessage();
+            return message == null || message.isEmpty()
+                    ? "Телефонът не стига до лаптопа. Адресът трябва да е от прозореца на лаптопа."
+                    : message;
+        } catch (Throwable ex) {
             if (ex.getMessage() == null || ex.getMessage().isEmpty()) {
                 return "Няма връзка с лаптопа.";
             }

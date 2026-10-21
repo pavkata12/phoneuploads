@@ -4,7 +4,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +35,7 @@ public final class ServerClient {
     }
 
     public void login(String password) throws IOException {
+        reach();
         HttpResult page = request("GET", "/login", null, null, null);
         Matcher form = CSRF_FORM.matcher(page.body);
         if (!form.find()) {
@@ -136,8 +141,8 @@ public final class ServerClient {
             IntConsumer onWritten) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) base.resolve(path).toURL().openConnection();
         connection.setInstanceFollowRedirects(false);
-        connection.setConnectTimeout(20000);
-        connection.setReadTimeout(600000);
+        connection.setConnectTimeout(8000);
+        connection.setReadTimeout(onWritten == null ? 20000 : 120000);
         connection.setRequestMethod(method);
         if (!cookies.isEmpty()) {
             connection.setRequestProperty("Cookie", cookieHeader());
@@ -178,6 +183,26 @@ public final class ServerClient {
         return new HttpResult(status, text);
     }
 
+    private void reach() throws IOException {
+        int port = base.getPort();
+        if (port < 1) {
+            port = 8787;
+        }
+        Socket socket = new Socket();
+        try {
+            socket.connect(new InetSocketAddress(base.getHost(), port), 8000);
+        } catch (SocketTimeoutException ex) {
+            throw new SocketTimeoutException("Лаптопът не отговаря. Остави програмата отворена. На лаптопа натисни „Разреши телефона“.");
+        } catch (ConnectException ex) {
+            throw new ConnectException("Лаптопът отказа връзката. Сървърът на Ренди трябва да е отворен.");
+        } finally {
+            try {
+                socket.close();
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
     private void rememberConnectionCookies(HttpURLConnection connection) {
         Map<String, List<String>> fields = connection.getHeaderFields();
         if (fields != null) {
@@ -185,16 +210,6 @@ public final class ServerClient {
                 if (entry.getKey() != null && entry.getKey().equalsIgnoreCase("Set-Cookie")) {
                     rememberCookies(entry.getValue());
                 }
-            }
-        }
-        for (int i = 0; i < 40; i++) {
-            String key = connection.getHeaderFieldKey(i);
-            String value = connection.getHeaderField(i);
-            if (key == null && value == null) {
-                break;
-            }
-            if (key != null && key.equalsIgnoreCase("Set-Cookie") && value != null) {
-                rememberCookies(java.util.Collections.singletonList(value));
             }
         }
     }

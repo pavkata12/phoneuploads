@@ -161,6 +161,9 @@ class HeaderMiddleware:
                 await _send_json(send, 413, "Заявката е твърде голяма.")
                 return
         cache = b"public, max-age=3600" if path.startswith("/static/") else b"no-store"
+        if not path.startswith("/static/") and path != "/favicon.ico":
+            client = scope.get("client") or ("?", 0)
+            _remember_phone(method, path, str(client[0]))
 
         async def send_with_headers(message) -> None:
             if message["type"] == "http.response.start":
@@ -173,6 +176,28 @@ class HeaderMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
+
+
+def _remember_phone(method: str, path: str, ip: str) -> None:
+    if path == "/health":
+        text = f"Телефонът проверява връзката. Адресът му е {ip}."
+    elif path == "/login" and method == "POST":
+        text = f"Телефонът праща парола. Адресът му е {ip}."
+    elif path == "/login":
+        text = f"Телефонът отвори входа. Адресът му е {ip}."
+    elif method == "PUT" and "/chunk" in path:
+        text = f"Телефонът праща видео. Адресът му е {ip}."
+    elif path == "/api/uploads" and method == "POST":
+        text = f"Телефонът започва качване. Адресът му е {ip}."
+    elif path == "/" :
+        text = f"Телефонът е вътре. Адресът му е {ip}."
+    else:
+        text = f"Телефонът се обади: {method} {path}. Адресът му е {ip}."
+    try:
+        settings.data_dir.mkdir(parents=True, exist_ok=True)
+        (settings.data_dir / "phone-status.txt").write_text(text, encoding="utf-8")
+    except OSError:
+        logger.warning("Could not write the phone status.")
 
 
 _ADDED_HEADERS = {

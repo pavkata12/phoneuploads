@@ -252,7 +252,7 @@ public final class ServerClient {
             total += count;
         }
         stream.close();
-        return output.toString(StandardCharsets.UTF_8);
+        return new String(output.toByteArray(), StandardCharsets.UTF_8);
     }
 
     private static String errorText(HttpResult result, String fallback) {
